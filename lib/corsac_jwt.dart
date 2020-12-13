@@ -176,6 +176,9 @@ class JWT {
     'jti'
   ];
 
+  /// List of reserved headers.
+  static const reservedHeaders = ['typ', 'alg'];
+
   /// Allows access to the full headers map.
   ///
   /// Returned map is read-only.
@@ -279,6 +282,7 @@ class JWT {
 /// Builder for JSON Web Tokens.
 class JWTBuilder {
   final Map<String, dynamic> _claims = {};
+  final Map<String, dynamic> _headers = {'typ': 'JWT', 'alg': 'none'};
 
   /// Token issuer (standard `iss` claim).
   set issuer(String issuer) {
@@ -316,9 +320,8 @@ class JWTBuilder {
 
   /// Sets value of private (custom) claim.
   ///
-  /// One can not use this method to
-  /// set values of standard (reserved) claims, [JWTError] will be thrown in such
-  /// case.
+  /// This method cannot be used to
+  /// set values of standard (reserved) claims.
   void setClaim(String name, value) {
     if (JWT.reservedClaims.contains(name.toLowerCase())) {
       throw ArgumentError.value(
@@ -327,12 +330,22 @@ class JWTBuilder {
     _claims[name] = value;
   }
 
+  /// Sets value of a private (custom) header.
+  ///
+  /// This method cannot be used to update standard (reserved) headers.
+  void setHeader(String name, value) {
+    if (JWT.reservedHeaders.contains(name.toLowerCase())) {
+      throw ArgumentError.value(
+          name, 'name', 'Only custom headers can be set with setHeader.');
+    }
+    _headers[name] = value;
+  }
+
   /// Builds and returns JWT. The token will not be signed.
   ///
   /// To create signed token use [getSignedToken] instead.
   JWT getToken() {
-    final headers = {'typ': 'JWT', 'alg': 'none'};
-    final encodedHeader = _base64Unpadded(_jsonToBase64Url.encode(headers));
+    final encodedHeader = _base64Unpadded(_jsonToBase64Url.encode(_headers));
     final encodedPayload = _base64Unpadded(_jsonToBase64Url.encode(_claims));
     return JWT._(encodedHeader, encodedPayload, null);
   }
@@ -343,8 +356,8 @@ class JWTBuilder {
   ///
   /// To create unsigned token use [getToken].
   JWT getSignedToken(JWTSigner signer) {
-    var headers = {'typ': 'JWT', 'alg': signer.algorithm};
-    final encodedHeader = _base64Unpadded(_jsonToBase64Url.encode(headers));
+    _headers['alg'] = signer.algorithm;
+    final encodedHeader = _base64Unpadded(_jsonToBase64Url.encode(_headers));
     final encodedPayload = _base64Unpadded(_jsonToBase64Url.encode(_claims));
     var body = encodedHeader + '.' + encodedPayload;
     var signature =
